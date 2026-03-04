@@ -236,8 +236,6 @@ export default function App() {
       setError(String(e))
     }
   }
-  }
-  }
 
   const pauseLoop = async () => {
     setError('')
