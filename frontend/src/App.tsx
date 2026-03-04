@@ -296,44 +296,47 @@ export default function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="grid two">
-        <PromptEditor
-          profiles={profiles}
-          selectedProfileId={selectedProfileId}
-          profileName={profileName}
-          plannerPrompt={plannerPrompt}
-          workerPrompt={workerPrompt}
-          reviewerPrompt={reviewerPrompt}
-          onSelectProfile={setSelectedProfileId}
-          onProfileNameChange={setProfileName}
-          onPlannerChange={setPlannerPrompt}
-          onWorkerChange={setWorkerPrompt}
-          onReviewerChange={setReviewerPrompt}
-          onSave={saveProfile}
-        />
+      <div className="top-layout">
+        <div className="left-column">
+          <PromptEditor
+            profiles={profiles}
+            selectedProfileId={selectedProfileId}
+            profileName={profileName}
+            plannerPrompt={plannerPrompt}
+            workerPrompt={workerPrompt}
+            reviewerPrompt={reviewerPrompt}
+            onSelectProfile={setSelectedProfileId}
+            onProfileNameChange={setProfileName}
+            onPlannerChange={setPlannerPrompt}
+            onWorkerChange={setWorkerPrompt}
+            onReviewerChange={setReviewerPrompt}
+            onSave={saveProfile}
+          />
+        </div>
 
-        <RunControls
-          goal={goal}
-          globalContext={globalContext}
-          lastDoneThing={lastDoneThing}
-          isBusy={busy}
-          selectedRunId={selectedRunId}
-          selectedRunStatus={selectedRun?.status || null}
-          autoLoopEnabled={autoLoopEnabled}
-          onGoalChange={setGoal}
-          onGlobalContextChange={setGlobalContext}
-          onLastDoneThingChange={setLastDoneThing}
-          onStartRun={startRun}
-          onStopRun={stopRun}
+        <div className="right-column">
+          <RunControls
+            goal={goal}
+            globalContext={globalContext}
+            lastDoneThing={lastDoneThing}
+            isBusy={busy}
+            selectedRunId={selectedRunId}
+            selectedRunStatus={selectedRun?.status || null}
+            autoLoopEnabled={autoLoopEnabled}
+            onGoalChange={setGoal}
+            onGlobalContextChange={setGlobalContext}
+            onLastDoneThingChange={setLastDoneThing}
+            onStartRun={startRun}
+            onStopRun={stopRun}
+            onPauseLoop={pauseLoop}
+            onResumeLoop={resumeLoop}
+            onRetryStep={retryStep}
+            onRerunReviewer={rerunReviewer}
+          />
 
-          onPauseLoop={pauseLoop}
-          onResumeLoop={resumeLoop}
-          onRetryStep={retryStep}
-          onRerunReviewer={rerunReviewer}
-        />
+          <PipelineStatus runDetail={runDetail} />
+        </div>
       </div>
-
-      <PipelineStatus runDetail={runDetail} />
 
       <StatsPanel />
 
