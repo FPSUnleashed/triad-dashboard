@@ -45,11 +45,25 @@ export function RunControls(props: Props) {
         </button>
       </div>
 
-      <div className="button-row">
-        <button onClick={props.autoLoopEnabled ? props.onPauseLoop : props.onResumeLoop}>
-          {props.autoLoopEnabled ? 'Disable Auto-Loop' : 'Enable Auto-Loop'}
-        </button>
+      <div className="loop-toggle-row">
+        <div>
+          <label className="label" style={{ margin: 0 }}>Auto-Start Next Cycle</label>
+          <p className="muted small" style={{ margin: '4px 0 0' }}>
+            {props.autoLoopEnabled ? 'Enabled: next cycle starts automatically after APPROVE.' : 'Disabled: runs stop after current cycle.'}
+          </p>
+        </div>
 
+        <label className="switch" aria-label="Toggle auto-start next cycle">
+          <input
+            type="checkbox"
+            checked={props.autoLoopEnabled}
+            onChange={(e) => (e.target.checked ? props.onResumeLoop() : props.onPauseLoop())}
+          />
+          <span className="slider" />
+        </label>
+      </div>
+
+      <div className="button-row">
         <button
           disabled={props.isBusy || !props.selectedRunId}
           onClick={() => props.onRetryStep('planner')}
