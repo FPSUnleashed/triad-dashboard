@@ -26,6 +26,9 @@
   /* Extended Palette */
   --bg-primary: #faf8f6;
   --bg-secondary: #f3ede8;
+  --accent-ok: #22c55e;
+  --accent-warn: #f59e0b;
+  --accent-danger: #ef4444;
   --bg-tertiary: #ebe3db;
   --text-primary: #5d2e46;
   --text-secondary: #7a4a5e;
@@ -1168,4 +1171,240 @@ select {
 
 .stats-panel .stats-total {
   display: none;
+}
+
+/* ── System Metrics (Header Indicators) ── */
+
+.sys-metrics {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0 1rem;
+}
+
+.sys-metric {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+  color: var(--text-secondary);
+}
+
+.sys-metric-icon {
+  font-size: 0.8rem;
+}
+
+.sys-metric-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  opacity: 0.7;
+  min-width: 2rem;
+}
+
+.sys-metric-bar {
+  width: 48px;
+  height: 6px;
+  background: var(--bg-tertiary, rgba(0,0,0,0.1));
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sys-metric-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+.sys-metric-val {
+  min-width: 2.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* VM Badge */
+.sys-vm-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+}
+
+.sys-vm-badge.vm-on {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.sys-vm-badge.vm-off {
+  background: rgba(120, 120, 120, 0.08);
+  border-color: rgba(120, 120, 120, 0.2);
+  color: var(--text-muted, #999);
+}
+
+.sys-vm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.vm-on .sys-vm-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  animation: vm-pulse 1.5s ease-in-out infinite;
+}
+
+.vm-off .sys-vm-dot {
+  background: var(--text-muted, #999);
+}
+
+@keyframes vm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sys-vm-text {
+  white-space: nowrap;
+}
+
+/* Responsive: stack metrics on narrow screens */
+@media (max-width: 900px) {
+  .sys-metrics {
+    gap: 0.5rem;
+    padding: 0 0.5rem;
+  }
+  .sys-metric-bar {
+    width: 32px;
+  }
+  .sys-metric-label {
+    display: none;
+  }
+}
+
+/* ── Goal Editor Modal ── */
+.goal-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(93, 46, 70, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: goalFadeIn 0.2s ease;
+}
+
+@keyframes goalFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.goal-modal {
+  width: 90vw;
+  height: 85vh;
+  max-width: 1100px;
+  background: var(--white);
+  border: 1px solid var(--dusty-rose);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 80px rgba(93, 46, 70, 0.3);
+  animation: goalSlideUp 0.25s ease;
+}
+
+@keyframes goalSlideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.goal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--sand);
+  flex-shrink: 0;
+}
+
+.goal-modal-title {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--deep-burgundy);
+  margin: 0;
+}
+
+.goal-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.goal-modal-body {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+}
+
+.goal-modal-body .toastui-editor-defaultUI {
+  border: none;
+  height: 100% !important;
+}
+
+.goal-modal-body .toastui-editor-defaultUI .toastui-editor-main {
+  height: calc(100% - 40px) !important;
+}
+
+/* ── Expand button ── */
+.btn-expand {
+  background: none;
+  border: 1px solid var(--sand);
+  border-radius: 4px;
+  color: var(--clay);
+  font-size: 1rem;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btn-expand:hover {
+  background: var(--sand);
+  color: var(--deep-burgundy);
+  border-color: var(--dusty-rose);
+}
+
+/* ── Control label row (label + meta/expand) ── */
+.control-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.control-label-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.control-meta-text {
+  font-size: 0.7rem;
+  color: var(--clay);
+  opacity: 0.7;
 }

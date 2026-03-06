@@ -1,4 +1,4 @@
-import type { LoopState, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats } from './types'
+import type { LoopState, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats, SystemMetrics } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api'
 
@@ -65,5 +65,7 @@ export const api = {
   pauseLoop: () => req<LoopState>('/loop/pause', { method: 'POST' }),
   resumeLoop: () => req<LoopState>('/loop/resume', { method: 'POST' }),
 
-  getStats: () => req<Stats>('/stats')
+  getStats: () => req<Stats>('/stats'),
+
+  getSystemMetrics: () => req<SystemMetrics>('/system/metrics')
 }

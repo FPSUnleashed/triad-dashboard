@@ -79,3 +79,17 @@ export interface Stats {
   total_all_steps_seconds: number
   total_all_steps_formatted: string
 }
+
+
+export interface SystemMetrics {
+  cpu_percent: number
+  ram_used_gb: number
+  ram_total_gb: number
+  ram_percent: number
+  vm_running: boolean
+  vm_info: {
+    pid?: number
+    ram_alloc?: string
+    kvm?: boolean
+  }
+}

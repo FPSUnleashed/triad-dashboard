@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { StepName } from '../types'
+import { GoalEditorModal } from './GoalEditorModal'
 
 interface Props {
   goal: string
@@ -20,7 +22,11 @@ interface Props {
 }
 
 export function RunControls(props: Props) {
+  const [goalModalOpen, setGoalModalOpen] = useState(false)
   const canCancel = props.selectedRunStatus === 'running' || props.selectedRunStatus === 'paused'
+
+  const goalLines = props.goal ? props.goal.split('\n').length : 0
+  const goalChars = props.goal ? props.goal.length : 0
 
   return (
     <section className="panel control-section">
@@ -29,7 +35,22 @@ export function RunControls(props: Props) {
       </div>
 
       <div className="control-group">
-        <label className="control-label">Goal</label>
+        <div className="control-label-row">
+          <label className="control-label">Goal</label>
+          <div className="control-label-meta">
+            {goalLines > 0 && (
+              <span className="control-meta-text">{goalLines} lines · {goalChars} chars</span>
+            )}
+            <button
+              type="button"
+              className="btn-expand"
+              onClick={() => setGoalModalOpen(true)}
+              title="Expand editor"
+            >
+              ⤢
+            </button>
+          </div>
+        </div>
         <textarea
           className="control-textarea"
           value={props.goal}
@@ -120,6 +141,14 @@ export function RunControls(props: Props) {
           Re-run Reviewer
         </button>
       </div>
+
+      {goalModalOpen && (
+        <GoalEditorModal
+          value={props.goal}
+          onChange={props.onGoalChange}
+          onClose={() => setGoalModalOpen(false)}
+        />
+      )}
     </section>
   )
 }

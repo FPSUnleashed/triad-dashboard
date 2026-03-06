@@ -6,6 +6,7 @@ import { PipelineStatus } from './components/PipelineStatus'
 import { PromptEditor } from './components/PromptEditor'
 import { RunControls } from './components/RunControls'
 import { StatsPanel } from './components/StatsPanel'
+import { SystemMetrics } from './components/SystemMetrics'
 import type { Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
 import './styles.css'
 
@@ -254,6 +255,7 @@ export default function App() {
               <p className="app-subtitle">Planner → Worker → Reviewer</p>
             </div>
           </div>
+          <SystemMetrics />
           <nav className="app-nav">
             <StatsPanel />
           </nav>

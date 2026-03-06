@@ -20,3 +20,5 @@ vms/
 
 # Legacy rules
 legacy_rules/
+backend/*.db-wal
+backend/*.db-shm

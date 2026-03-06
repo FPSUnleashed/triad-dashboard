@@ -13,6 +13,8 @@ from .config import ALLOWED_ORIGINS, MAX_CONTEXT_SIZE, MAX_GOAL_SIZE, MAX_PROMPT
 from .db import execute, fetch_all, fetch_one, init_db, insert_and_get_id, json_dumps, utc_now
 from .runner import latest_step_statuses, runner
 
+import psutil
+
 # Load secrets from .a0proj/secrets.env
 secrets_file = Path(__file__).parent.parent / ".a0proj" / "secrets.env"
 if secrets_file.exists():
@@ -468,5 +470,42 @@ async def retry_run(run_id: int, payload: RetryPayload) -> dict:
 async def rerun_reviewer(run_id: int) -> dict:
     return await retry_run(run_id, RetryPayload(step="reviewer"))
 
+
+
+@r.get("/system/metrics")
+def system_metrics() -> dict:
+    cpu_percent = psutil.cpu_percent(interval=0.3)
+    mem = psutil.virtual_memory()
+
+    # Detect running QEMU VM
+    vm_running = False
+    vm_info = {}
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            if "qemu" in (proc.info["name"] or "").lower():
+                vm_running = True
+                cmdline = proc.info.get("cmdline") or []
+                cmdline_str = " ".join(cmdline)
+                # Extract RAM allocation from -m flag
+                vm_ram = "-"
+                for i, arg in enumerate(cmdline):
+                    if arg == "-m" and i + 1 < len(cmdline):
+                        vm_ram = cmdline[i + 1]
+                        break
+                # Check if KVM is in use
+                kvm = "kvm" in cmdline_str.lower()
+                vm_info = {"pid": proc.info["pid"], "ram_alloc": vm_ram, "kvm": kvm}
+                break
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    return {
+        "cpu_percent": round(cpu_percent, 1),
+        "ram_used_gb": round(mem.used / (1024 ** 3), 1),
+        "ram_total_gb": round(mem.total / (1024 ** 3), 1),
+        "ram_percent": round(mem.percent, 1),
+        "vm_running": vm_running,
+        "vm_info": vm_info,
+    }
 
 app.include_router(r)
