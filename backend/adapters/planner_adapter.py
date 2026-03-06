@@ -5,14 +5,37 @@ from .agent0_client import send_fresh_chat
 from .notion_client import NotionClient
 
 
+# Required Notion pages to always fetch for planner context
+REQUIRED_NOTION_PAGES = [
+    {
+        "id": "3086fd9c2bc281439cf6dee9b6362153",
+        "name": "Products",
+        "url": "https://www.notion.so/Products-3086fd9c2bc281439cf6dee9b6362153"
+    },
+    {
+        "id": "3066fd9c2bc281739334fbc74491b5a1",
+        "name": "FPS Unleashed (Business)",
+        "url": "https://www.notion.so/FPS-Unleashed-3066fd9c2bc281739334fbc74491b5a1"
+    }
+]
+
+
+def normalize_page_id(page_id: str) -> str:
+    """Normalize a 32-char page ID to UUID format."""
+    clean = page_id.replace("-", "")
+    if len(clean) == 32:
+        return f"{clean[:8]}-{clean[8:12]}-{clean[12:16]}-{clean[16:20]}-{clean[20:]}"
+    return page_id
+
+
 def extract_notion_urls(text: str) -> list[str]:
-    """Extract Notion URLs from text."""
+    """Extract Notion page IDs from text."""
     pattern = r'https?://(?:www\.)?notion\.so/(?:[^/]+-)?([a-f0-9]{32}|[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12})'
     return list(set(re.findall(pattern, text)))
 
 
-def fetch_notion_content(urls: list[str]) -> str:
-    """Fetch content from Notion URLs."""
+def fetch_notion_content(page_ids: list[str]) -> str:
+    """Fetch content from Notion page IDs."""
     api_key = os.environ.get("NOTION_API_KEY")
     if not api_key:
         return "[NOTION_API_KEY not set - cannot fetch Notion pages]"
@@ -20,13 +43,10 @@ def fetch_notion_content(urls: list[str]) -> str:
     client = NotionClient(api_key)
     contents = []
 
-    for page_id in urls:
+    for page_id in page_ids:
         try:
-            # Normalize page ID if needed
-            if len(page_id) == 32:
-                page_id = f"{page_id[:8]}-{page_id[8:12]}-{page_id[12:16]}-{page_id[16:20]}-{page_id[20:]}"
-
-            page_data = client.get_page_with_content(page_id)
+            normalized_id = normalize_page_id(page_id)
+            page_data = client.get_page_with_content(normalized_id)
             contents.append(f"\n=== NOTION: {page_data['title']} ===\n{page_data['content']}\n")
         except Exception as e:
             contents.append(f"[Error fetching Notion page {page_id}: {e}]")
@@ -35,13 +55,21 @@ def fetch_notion_content(urls: list[str]) -> str:
 
 
 def build_planner_input(planner_prompt: str, run_goal: str, global_context: str, last_done_thing: str) -> str:
-    """Build planner input, fetching any Notion URLs in global_context."""
+    """Build planner input, always fetching required Notion pages + any in global_context."""
 
-    # Check for Notion URLs in global context and fetch their content
-    notion_urls = extract_notion_urls(global_context)
+    # Always include required Notion pages
+    required_ids = [p["id"] for p in REQUIRED_NOTION_PAGES]
+    
+    # Also check for additional Notion URLs in global context
+    extra_ids = extract_notion_urls(global_context)
+    
+    # Combine and dedupe
+    all_ids = list(set(required_ids + extra_ids))
+    
+    # Fetch all Notion content
     notion_content = ""
-    if notion_urls:
-        notion_content = fetch_notion_content(notion_urls)
+    if all_ids:
+        notion_content = fetch_notion_content(all_ids)
 
     parts = [
         "[PLANNER PROMPT]",
@@ -54,7 +82,7 @@ def build_planner_input(planner_prompt: str, run_goal: str, global_context: str,
 
     if notion_content:
         parts.extend([
-            "[NOTION PAGES - LIVE FETCH]",
+            "[NOTION PAGES - REQUIRED CONTEXT]",
             notion_content,
             "",
         ])

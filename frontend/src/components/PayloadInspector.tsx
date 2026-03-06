@@ -18,55 +18,70 @@ export function PayloadInspector({ steps }: Props) {
   const copyText = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      alert('Copied')
     } catch {
-      alert('Copy failed')
+      // Silent fail
     }
   }
 
   return (
     <section className="panel">
-      <h2>Payload Inspector (Raw)</h2>
+      <div className="panel-header">
+        <h2 className="panel-title">Payload Inspector</h2>
+      </div>
 
-      <div className="step-list">
+      <div className="step-pills">
         {ordered.map((s) => (
           <button
             key={s.id}
             className={`step-pill ${selected?.id === s.id ? 'active' : ''}`}
             onClick={() => setSelectedStepId(s.id)}
           >
-            {s.step_name} · attempt {s.attempt} · {s.status}
+            {s.step_name} · #{s.attempt} · {s.status}
           </button>
         ))}
       </div>
 
       {!selected ? (
-        <div className="muted">No steps yet.</div>
+        <div className="text-muted text-sm">No steps yet.</div>
       ) : (
         <div className="payload-grid">
-          <div>
-            <div className="section-head">
-              <h3>Input Payload</h3>
-              <button onClick={() => copyText(selected.input_payload || '')}>Copy</button>
+          <div className="payload-block">
+            <div className="payload-block-header">
+              <h3 className="payload-block-title">Input Payload</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => copyText(selected.input_payload || '')}>
+                Copy
+              </button>
             </div>
-            <pre>{selected.input_payload}</pre>
+            <div className="payload-block-content">
+              <pre>{selected.input_payload}</pre>
+            </div>
           </div>
 
-          <div>
-            <div className="section-head">
-              <h3>Output Payload</h3>
-              <button onClick={() => copyText(selected.output_payload || '')}>Copy</button>
+          <div className="payload-block">
+            <div className="payload-block-header">
+              <h3 className="payload-block-title">Output Payload</h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => copyText(selected.output_payload || '')}>
+                Copy
+              </button>
             </div>
-            <pre>{selected.output_payload || ''}</pre>
+            <div className="payload-block-content">
+              <pre>{selected.output_payload || ''}</pre>
+            </div>
           </div>
 
-          <div>
-            <div className="section-head">
-              <h3>Error</h3>
-              <button onClick={() => copyText(selected.error || '')}>Copy</button>
+          {selected.error && (
+            <div className="payload-block full-width">
+              <div className="payload-block-header">
+                <h3 className="payload-block-title">Error</h3>
+                <button className="btn btn-ghost btn-sm" onClick={() => copyText(selected.error || '')}>
+                  Copy
+                </button>
+              </div>
+              <div className="payload-block-content">
+                <pre>{selected.error}</pre>
+              </div>
             </div>
-            <pre>{selected.error || ''}</pre>
-          </div>
+          )}
         </div>
       )}
     </section>

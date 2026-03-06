@@ -23,37 +23,71 @@ export function RunControls(props: Props) {
   const canCancel = props.selectedRunStatus === 'running' || props.selectedRunStatus === 'paused'
 
   return (
-    <section className="panel">
-      <h2>Run Control</h2>
+    <section className="panel control-section">
+      <div className="panel-header">
+        <h2 className="panel-title">Run Control</h2>
+      </div>
 
-      <label>Run Goal</label>
-      <textarea value={props.goal} onChange={(e) => props.onGoalChange(e.target.value)} rows={3} />
+      <div className="control-group">
+        <label className="control-label">Goal</label>
+        <textarea
+          className="control-textarea"
+          value={props.goal}
+          onChange={(e) => props.onGoalChange(e.target.value)}
+          rows={2}
+          placeholder="Define the objective for this run..."
+        />
+      </div>
 
-      <label>Global Context</label>
-      <textarea value={props.globalContext} onChange={(e) => props.onGlobalContextChange(e.target.value)} rows={3} />
+      <div className="control-group">
+        <label className="control-label">Global Context</label>
+        <textarea
+          className="control-textarea"
+          value={props.globalContext}
+          onChange={(e) => props.onGlobalContextChange(e.target.value)}
+          rows={2}
+          placeholder="Additional context available to all steps..."
+        />
+      </div>
 
-      <label>Last Done Thing (review feedback / previous report)</label>
-      <textarea value={props.lastDoneThing} onChange={(e) => props.onLastDoneThingChange(e.target.value)} rows={3} />
+      <div className="control-group">
+        <label className="control-label">Last Done Thing</label>
+        <textarea
+          className="control-textarea"
+          value={props.lastDoneThing}
+          onChange={(e) => props.onLastDoneThingChange(e.target.value)}
+          rows={2}
+          placeholder="Review feedback or previous report..."
+        />
+      </div>
 
-      <div className="button-row">
-        <button disabled={props.isBusy} onClick={props.onStartRun}>
+      <div className="control-actions">
+        <button
+          className="btn btn-primary"
+          disabled={props.isBusy}
+          onClick={props.onStartRun}
+        >
           Start Run
         </button>
-
-        <button disabled={!props.selectedRunId || !canCancel} onClick={props.onStopRun}>
-          Cancel Selected Run
+        <button
+          className="btn btn-secondary"
+          disabled={!props.selectedRunId || !canCancel}
+          onClick={props.onStopRun}
+        >
+          Cancel
         </button>
       </div>
 
-      <div className="loop-toggle-row">
-        <div>
-          <label className="label" style={{ margin: 0 }}>Auto-Start Next Cycle</label>
-          <p className="muted small" style={{ margin: '4px 0 0' }}>
-            {props.autoLoopEnabled ? 'Enabled: next cycle starts automatically after APPROVE.' : 'Disabled: runs stop after current cycle.'}
-          </p>
+      <div className="auto-loop">
+        <div className="auto-loop-info">
+          <div className="auto-loop-title">Auto-Start Next Cycle</div>
+          <div className="auto-loop-desc">
+            {props.autoLoopEnabled
+              ? 'Enabled — next cycle starts automatically after APPROVE'
+              : 'Disabled — runs stop after current cycle'}
+          </div>
         </div>
-
-        <label className="switch" aria-label="Toggle auto-start next cycle">
+        <label className="switch">
           <input
             type="checkbox"
             checked={props.autoLoopEnabled}
@@ -63,22 +97,23 @@ export function RunControls(props: Props) {
         </label>
       </div>
 
-      <div className="button-row">
+      <div className="control-actions">
         <button
+          className="btn btn-ghost btn-sm"
           disabled={props.isBusy || !props.selectedRunId}
           onClick={() => props.onRetryStep('planner')}
         >
           Retry Planner
         </button>
-
         <button
+          className="btn btn-ghost btn-sm"
           disabled={props.isBusy || !props.selectedRunId}
           onClick={() => props.onRetryStep('worker')}
         >
           Retry Worker
         </button>
-
         <button
+          className="btn btn-ghost btn-sm"
           disabled={props.isBusy || !props.selectedRunId}
           onClick={props.onRerunReviewer}
         >

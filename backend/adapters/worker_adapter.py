@@ -9,7 +9,8 @@ def build_worker_input(worker_inject_prompt: str, task_packet: str) -> str:
         f"{worker_inject_prompt}\n\n"
         "[PLANNER OUTPUT / TASK PACKET]\n"
         f"{task_packet}\n\n"
-        "Execute and return delivery packet with files changed, artifact paths, hashes, and test instructions."
+        "Execute this task FULLY. Do not defer to humans. Do not stop at 'ready for review'. "
+        "Return a delivery packet only when ALL acceptance criteria are MET with evidence."
     )
 
 

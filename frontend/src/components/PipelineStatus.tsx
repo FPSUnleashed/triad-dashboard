@@ -1,18 +1,25 @@
-import { Fragment } from 'react'
 import type { RunDetailResponse, StepName, StepStatus } from '../types'
 
 interface Props {
   runDetail: RunDetailResponse | null
 }
 
-const labelMap: Record<StepName, string> = {
+const STEPS: StepName[] = ['planner', 'worker', 'reviewer']
+
+const STEP_LABEL: Record<StepName, string> = {
   planner: 'Planner',
   worker: 'Worker',
   reviewer: 'Reviewer'
 }
 
-function cls(status: StepStatus) {
-  return `node ${status}`
+const STATUS_ICON: Record<StepStatus, string> = {
+  pending: '○',
+  running: '◐',
+  paused: 'ǁ',
+  passed: '●',
+  failed: '✕',
+  blocked: '⚠',
+  cancelled: '∅'
 }
 
 export function PipelineStatus({ runDetail }: Props) {
@@ -26,43 +33,85 @@ export function PipelineStatus({ runDetail }: Props) {
 
   const getDuration = (step: StepName): string | null => {
     if (!stepStatus) return null
-    const stepData = stepStatus[step]
-    if (stepData?.duration_formatted) {
-      return stepData.duration_formatted
-    }
-    return null
+    return stepStatus[step]?.duration_formatted || null
   }
 
+  const activeStep = STEPS.find((s) => {
+    const st = getStatus(s)
+    return st === 'running' || st === 'paused'
+  })
+
+  const runStatus = (run?.status || 'pending') as StepStatus
+
   return (
-    <section className="panel">
-      <h2>Pipeline Status</h2>
-      <div className="pipeline">
-        {(['planner', 'worker', 'reviewer'] as StepName[]).map((step, idx) => (
-          <Fragment key={step}>
-            <div className={cls(getStatus(step))}>
-              <strong>{labelMap[step]}</strong>
-              <span className="status-label">{getStatus(step)}</span>
-              {getDuration(step) && (
-                <span className="duration">⏱ {getDuration(step)}</span>
-              )}
-            </div>
-            {idx < 2 && <div className="arrow">→</div>}
-          </Fragment>
-        ))}
-        <div className="loopback">↺ feedback to Planner</div>
+    <section className="pipeline-section">
+      {/* Header */}
+      <div className="pipeline-header">
+        <div>
+          <h2 className="pipeline-title">Pipeline</h2>
+          <p className="panel-subtitle">Planner → Worker → Reviewer</p>
+        </div>
+        <div className={`pipeline-badge ${runStatus}`}>
+          {run?.status ? run.status.toUpperCase() : 'NO RUN'}
+        </div>
       </div>
 
-      {runDetail && (
-        <div className="meta">
-          <div><strong>Run:</strong> #{run.id}</div>
-          <div><strong>Status:</strong> {run.status}</div>
-          <div><strong>Running:</strong> {runDetail.is_running ? 'yes' : 'no'}</div>
-          {run.duration_formatted && (
-            <div><strong>Duration:</strong> {run.duration_formatted}</div>
-          )}
-          {run.elapsed_formatted && runDetail.is_running && (
-            <div><strong>Elapsed:</strong> {run.elapsed_formatted}</div>
-          )}
+      {/* Step cards */}
+      <div className="pipeline-steps">
+        {STEPS.map((step) => {
+          const status = getStatus(step)
+          const duration = getDuration(step)
+          const isActive = activeStep === step
+
+          return (
+            <div
+              key={step}
+              className={`pipeline-step ${isActive ? 'active' : ''}`}
+            >
+              <div className="pipeline-step-header">
+                <div className={`pipeline-step-icon ${status}`}>
+                  {STATUS_ICON[status]}
+                </div>
+                <div>
+                  <div className="pipeline-step-name">{STEP_LABEL[step]}</div>
+                  <div className={`pipeline-step-status ${status}`}>
+                    {status}
+                  </div>
+                </div>
+              </div>
+              <div className="pipeline-step-duration">
+                {duration || '--:--'}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Meta info */}
+      {runDetail && run && (
+        <div className="pipeline-meta">
+          <div className="pipeline-meta-item">
+            <span className="pipeline-meta-label">Run ID</span>
+            <span className="pipeline-meta-value">#{run.id}</span>
+          </div>
+          <div className="pipeline-meta-item">
+            <span className="pipeline-meta-label">Engine</span>
+            <span className="pipeline-meta-value">
+              {runDetail.is_running ? 'Running' : 'Stopped'}
+            </span>
+          </div>
+          <div className="pipeline-meta-item">
+            <span className="pipeline-meta-label">Duration</span>
+            <span className="pipeline-meta-value">
+              {run.duration_formatted || '--:--'}
+            </span>
+          </div>
+          <div className="pipeline-meta-item">
+            <span className="pipeline-meta-label">Elapsed</span>
+            <span className="pipeline-meta-value">
+              {run.elapsed_formatted || '--:--'}
+            </span>
+          </div>
         </div>
       )}
     </section>

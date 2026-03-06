@@ -12,17 +12,26 @@ export function StatsPanel() {
         const data = await api.getStats()
         setStats(data)
         setError(null)
-      } catch (e) {
+      } catch {
         setError('Failed to load stats')
       }
     }
     fetchStats()
-    const interval = setInterval(fetchStats, 10000) // Refresh every 10s
+    const interval = setInterval(fetchStats, 10000)
     return () => clearInterval(interval)
   }, [])
 
-  if (error) return <div className="stats-panel error">{error}</div>
-  if (!stats) return <div className="stats-panel">Loading...</div>
+  if (error) return (
+    <section className="panel stats-panel">
+      <div className="text-sm text-muted">{error}</div>
+    </section>
+  )
+  
+  if (!stats) return (
+    <section className="panel stats-panel">
+      <div className="text-sm text-muted">Loading stats...</div>
+    </section>
+  )
 
   const stepLabels: Record<StepName, string> = {
     planner: 'Planner',
@@ -31,21 +40,23 @@ export function StatsPanel() {
   }
 
   return (
-    <section className="stats-panel">
-      <h3>📊 All-Time Stats</h3>
+    <section className="panel stats-panel">
+      <div className="stats-header">
+        <h3 className="stats-title">All-Time Stats</h3>
+      </div>
       <div className="stats-grid">
         {(['planner', 'worker', 'reviewer'] as StepName[]).map(step => {
           const s = stats.step_stats[step]
           return (
-            <div key={step} className="stat-item">
-              <div className="label">{stepLabels[step]}</div>
-              <div className="value">{s.total_formatted}</div>
-              <div className="label">{s.step_count} runs • avg {s.avg_formatted}</div>
+            <div key={step} className="stat-card">
+              <div className="stat-label">{stepLabels[step]}</div>
+              <div className="stat-value">{s.total_formatted}</div>
+              <div className="stat-meta">{s.step_count} runs · avg {s.avg_formatted}</div>
             </div>
           )
         })}
       </div>
-      <div className="stat-total">
+      <div className="stats-total">
         <strong>Total:</strong> {stats.total_all_steps_formatted} across {stats.total_runs} runs
       </div>
     </section>

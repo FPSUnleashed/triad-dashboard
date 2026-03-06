@@ -344,6 +344,7 @@ class TriadRunner:
             reviewer_input = build_reviewer_input(
                 reviewer_inject_prompt=profile["reviewer_inject_prompt"],
                 delivery_packet=worker_output,
+                planner_task=planner_output,
             )
             current_step_name = "reviewer"
             current_step_id = self._start_step(run_id, "reviewer", reviewer_input)

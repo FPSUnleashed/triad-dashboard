@@ -14,3 +14,9 @@ tmp/
 # Local project metadata / secrets
 .a0proj/
 backend/triad.db
+
+# VM files
+vms/
+
+# Legacy rules
+legacy_rules/

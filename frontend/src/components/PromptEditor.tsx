@@ -91,18 +91,18 @@ function PromptSection({
   return (
     <div className="prompt-section">
       <div className="prompt-toolbar">
-        <label className="label">{label}</label>
+        <label className="prompt-toolbar-label">{label}</label>
         <button type="button" className="prompt-toggle-btn" onClick={onToggle}>
           {collapsed ? 'Expand' : 'Collapse'}
         </button>
       </div>
 
       {collapsed ? (
-        <div className="prompt-collapsed-meta muted small">
+        <div className="prompt-collapsed-meta">
           Collapsed · {lineCount} lines · {charCount} chars
         </div>
       ) : (
-        <div className="md-rich-wrap">
+        <div className="prompt-editor-wrap md-rich-wrap">
           <div ref={mountRef} />
         </div>
       )}
@@ -119,10 +119,11 @@ export function PromptEditor(props: Props) {
 
   return (
     <section className="panel">
-      <h2>Prompt Editor</h2>
+      <div className="panel-header">
+        <h2 className="panel-title">Prompt Editor</h2>
+      </div>
 
-      <div className="row">
-        <label>Profile</label>
+      <div className="prompt-profile-row">
         <select
           value={props.selectedProfileId ?? ''}
           onChange={(e) => props.onSelectProfile(Number(e.target.value))}
@@ -136,19 +137,15 @@ export function PromptEditor(props: Props) {
             </option>
           ))}
         </select>
-      </div>
-
-      <div className="row">
-        <label>Save As Name</label>
         <input
           value={props.profileName}
           onChange={(e) => props.onProfileNameChange(e.target.value)}
-          placeholder="default"
+          placeholder="Profile name"
         />
-        <button onClick={props.onSave}>Save Profile</button>
+        <button className="btn btn-secondary" onClick={props.onSave}>
+          Save
+        </button>
       </div>
-
-      <p className="muted small">Rich Markdown editor enabled: formatted content + direct editing in one field.</p>
 
       <PromptSection
         label="Planner Prompt"

@@ -42,7 +42,7 @@ class NotionClient:
         response.raise_for_status()
         return response.json()
 
-    def get_page_content(self, page_id: str, max_blocks: int = 100) -> str:
+    def get_page_content(self, page_id: str, max_blocks: int = 1000) -> str:
         """Get page content as plain text."""
         blocks = []
         has_more = True

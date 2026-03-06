@@ -17,7 +17,11 @@ export default function App() {
     const parsed = saved ? Number.parseInt(saved, 10) : Number.NaN
     return Number.isFinite(parsed) ? parsed : null
   })
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(() => {
+    const saved = localStorage.getItem('triad_runId')
+    const parsed = saved ? Number.parseInt(saved, 10) : Number.NaN
+    return Number.isFinite(parsed) ? parsed : null
+  })
 
   const [profileName, setProfileName] = useState('default')
   const [plannerPrompt, setPlannerPrompt] = useState('')
@@ -78,78 +82,44 @@ export default function App() {
 
   const refreshLoopState = async () => {
     const state = await api.getLoopState()
-    setAutoLoopEnabled(Boolean(state.auto_loop_enabled))
+    setAutoLoopEnabled(state.auto_loop_enabled)
   }
 
   useEffect(() => {
-    ;(async () => {
-      try {
-        const profilesData = await api.listProfiles()
-        setProfiles(profilesData)
-        if (profilesData.length > 0) {
-          const savedIdRaw = localStorage.getItem('triad_profileId')
-          const savedId = savedIdRaw ? Number.parseInt(savedIdRaw, 10) : Number.NaN
-          const savedProfile = Number.isFinite(savedId)
-            ? profilesData.find((p) => p.id === savedId)
-            : null
-          const profile = savedProfile || profilesData[0]
-          setSelectedProfileId(profile.id)
-          setProfileName(profile.name)
-          setPlannerPrompt(profile.planner_prompt)
-          setWorkerPrompt(profile.worker_inject_prompt)
-          setReviewerPrompt(profile.reviewer_inject_prompt)
-        }
-
-        const runsData = await api.listRuns(30)
-        setRuns(runsData)
-        const activeRun = runsData.find((r: Run) => r.status === 'running')
-          || runsData.find((r: Run) => r.status === 'pending')
-          || runsData[0]
-        if (activeRun) setSelectedRunId(activeRun.id)
-
-        await refreshLoopState()
-      } catch (e) {
-        setError(String(e))
-      }
-    })()
+    refreshProfiles()
+    refreshRuns()
+    refreshLoopState()
   }, [])
 
   useEffect(() => {
-    if (!selectedProfile) return
-    setProfileName(selectedProfile.name)
-    setPlannerPrompt(selectedProfile.planner_prompt)
-    setWorkerPrompt(selectedProfile.worker_inject_prompt)
-    setReviewerPrompt(selectedProfile.reviewer_inject_prompt)
-  }, [selectedProfile])
-
-  useEffect(() => {
-    if (!selectedRunId) return
-    let alive = true
-
-    const tick = async () => {
-      if (!alive) return
-      try {
-        await refreshRunData(selectedRunId)
-      } catch (e) {
-        if (alive) setError(String(e))
-      }
-    }
-
-    tick()
-    const t = setInterval(tick, 2000)
-    return () => {
-      alive = false
-      clearInterval(t)
+    if (selectedRunId) {
+      refreshRunData(selectedRunId)
+      // Poll while run is active
+      const interval = setInterval(async () => {
+        try {
+          await refreshRunData(selectedRunId)
+          await refreshRuns()
+        } catch { /* ignore */ }
+      }, 3000)
+      return () => clearInterval(interval)
+    } else {
+      setRunDetail(null)
+      setSteps([])
+      setEvents([])
     }
   }, [selectedRunId])
 
   useEffect(() => {
-    if (selectedProfileId === null || !Number.isFinite(selectedProfileId)) {
-      localStorage.removeItem('triad_profileId')
-      return
-    }
     localStorage.setItem('triad_profileId', String(selectedProfileId))
   }, [selectedProfileId])
+
+  useEffect(() => {
+    if (selectedRunId !== null) {
+      localStorage.setItem('triad_runId', String(selectedRunId))
+    } else {
+      localStorage.removeItem('triad_runId')
+    }
+  }, [selectedRunId])
 
   useEffect(() => {
     localStorage.setItem('triad_goal', goal)
@@ -163,204 +133,224 @@ export default function App() {
     localStorage.setItem('triad_lastDoneThing', lastDoneThing)
   }, [lastDoneThing])
 
-  const saveProfile = async () => {
+  const handleStartRun = async () => {
+    if (!selectedProfileId) return
+    setBusy(true)
     setError('')
-    if (!profileName.trim()) {
-      setError('Profile name is required')
-      return
-    }
     try {
-      setBusy(true)
-      const p = await api.upsertProfile({
-        name: profileName.trim(),
-        planner_prompt: plannerPrompt,
-        worker_inject_prompt: workerPrompt,
-        reviewer_inject_prompt: reviewerPrompt
-      })
-      await refreshProfiles()
-      setSelectedProfileId(p.id)
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const startRun = async () => {
-    setError('')
-    if (!profileName.trim()) {
-      setError('Profile name is required')
-      return
-    }
-    if (!goal.trim()) {
-      setError('Goal is required')
-      return
-    }
-
-    try {
-      setBusy(true)
-
-      const savedProfile = await api.upsertProfile({
-        name: profileName.trim(),
-        planner_prompt: plannerPrompt,
-        worker_inject_prompt: workerPrompt,
-        reviewer_inject_prompt: reviewerPrompt
-      })
-      setSelectedProfileId(savedProfile.id)
-
-      const created = await api.createRun({
-        goal: goal.trim(),
-        profile_id: savedProfile.id,
+      const { run } = await api.createRun({
+        profile_id: selectedProfileId,
+        goal,
         global_context: globalContext,
         last_done_thing: lastDoneThing
       })
-      setSelectedRunId(created.run.id)
-      await refreshProfiles()
       await refreshRuns()
-      await refreshRunData(created.run.id)
-    } catch (e) {
+      setSelectedRunId(run.id)
+    } catch (e: unknown) {
       setError(String(e))
     } finally {
       setBusy(false)
     }
   }
 
-  const stopRun = async () => {
+  const handleStopRun = async () => {
     if (!selectedRunId) return
-    setError('')
+    setBusy(true)
     try {
       await api.stopRun(selectedRunId)
       await refreshRuns()
       await refreshRunData(selectedRunId)
-    } catch (e) {
+    } catch (e: unknown) {
       setError(String(e))
+    } finally {
+      setBusy(false)
     }
   }
 
-  const pauseLoop = async () => {
-    setError('')
+  const handlePauseLoop = async () => {
     try {
-      const state = await api.pauseLoop()
-      setAutoLoopEnabled(Boolean(state.auto_loop_enabled))
-    } catch (e) {
+      await api.pauseLoop()
+      setAutoLoopEnabled(false)
+    } catch (e: unknown) {
       setError(String(e))
     }
   }
 
-  const resumeLoop = async () => {
-    setError('')
+  const handleResumeLoop = async () => {
     try {
-      const state = await api.resumeLoop()
-      setAutoLoopEnabled(Boolean(state.auto_loop_enabled))
-    } catch (e) {
+      await api.resumeLoop()
+      setAutoLoopEnabled(true)
+    } catch (e: unknown) {
       setError(String(e))
     }
   }
 
-  const retryStep = async (step: StepName) => {
+  const handleRetryStep = async (step: StepName) => {
     if (!selectedRunId) return
-    setError('')
+    setBusy(true)
     try {
-      setBusy(true)
       await api.retryRunFromStep(selectedRunId, step)
-      await refreshRunData(selectedRunId)
       await refreshRuns()
-    } catch (e) {
+      await refreshRunData(selectedRunId)
+    } catch (e: unknown) {
       setError(String(e))
     } finally {
       setBusy(false)
     }
   }
 
-  const rerunReviewer = async () => {
+  const handleRerunReviewer = async () => {
     if (!selectedRunId) return
-    setError('')
+    setBusy(true)
     try {
-      setBusy(true)
       await api.rerunReviewer(selectedRunId)
-      await refreshRunData(selectedRunId)
       await refreshRuns()
-    } catch (e) {
+      await refreshRunData(selectedRunId)
+    } catch (e: unknown) {
       setError(String(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    if (!selectedProfileId) return
+    setBusy(true)
+    try {
+      await api.upsertProfile({
+        name: profileName,
+        planner_prompt: plannerPrompt,
+        worker_inject_prompt: workerPrompt,
+        reviewer_inject_prompt: reviewerPrompt
+      })
+      await refreshProfiles()
+    } catch (e: unknown) {
+      setError(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSelectProfile = (id: number) => {
+    setSelectedProfileId(id)
+    const profile = profiles.find((p) => p.id === id)
+    if (profile) {
+      setProfileName(profile.name)
+      setPlannerPrompt(profile.planner_prompt)
+      setWorkerPrompt(profile.worker_inject_prompt)
+      setReviewerPrompt(profile.reviewer_inject_prompt)
     }
   }
 
   return (
-    <main className="app">
-      <header>
-        <h1>Triad Dashboard</h1>
-        <p>Simple Planner → Worker → Reviewer loop with full payload visibility.</p>
+    <div className="app">
+      {/* Header */}
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="app-brand">
+            <div className="app-logo">T</div>
+            <div>
+              <h1 className="app-title">Triad Dashboard</h1>
+              <p className="app-subtitle">Planner → Worker → Reviewer</p>
+            </div>
+          </div>
+          <nav className="app-nav">
+            <StatsPanel />
+          </nav>
+        </div>
       </header>
 
-      {error && <div className="error-banner">{error}</div>}
+      {/* Main Content */}
+      <main className="app-main">
+        {error && (
+          <div className="error-banner">
+            <span>{error}</span>
+            <button className="error-banner-close" onClick={() => setError('')}>×</button>
+          </div>
+        )}
 
-      <div className="top-layout">
-        <div className="left-column">
-          <PromptEditor
-            profiles={profiles}
-            selectedProfileId={selectedProfileId}
-            profileName={profileName}
-            plannerPrompt={plannerPrompt}
-            workerPrompt={workerPrompt}
-            reviewerPrompt={reviewerPrompt}
-            onSelectProfile={setSelectedProfileId}
-            onProfileNameChange={setProfileName}
-            onPlannerChange={setPlannerPrompt}
-            onWorkerChange={setWorkerPrompt}
-            onReviewerChange={setReviewerPrompt}
-            onSave={saveProfile}
-          />
+        <div className="app-grid">
+          {/* Sidebar */}
+          <aside className="app-sidebar">
+            {/* Run Selector */}
+            <section className="panel">
+              <div className="panel-header">
+                <h2 className="panel-title">Runs</h2>
+                <button 
+                  className="btn btn-ghost btn-sm" 
+                  onClick={refreshRuns}
+                  disabled={busy}
+                >
+                  Refresh
+                </button>
+              </div>
+              <div className="run-selector">
+                {runs.length === 0 && (
+                  <div className="text-muted text-sm">No runs yet</div>
+                )}
+                {runs.map((run) => (
+                  <div
+                    key={run.id}
+                    className={`run-item ${selectedRunId === run.id ? 'active' : ''}`}
+                    onClick={() => setSelectedRunId(run.id)}
+                  >
+                    <span className="run-item-id">#{run.id}</span>
+                    <span className={`run-item-status ${run.status}`}>{run.status}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Run Controls */}
+            <RunControls
+              goal={goal}
+              globalContext={globalContext}
+              lastDoneThing={lastDoneThing}
+              isBusy={busy}
+              selectedRunId={selectedRunId}
+              selectedRunStatus={selectedRun?.status || null}
+              autoLoopEnabled={autoLoopEnabled}
+              onGoalChange={setGoal}
+              onGlobalContextChange={setGlobalContext}
+              onLastDoneThingChange={setLastDoneThing}
+              onStartRun={handleStartRun}
+              onStopRun={handleStopRun}
+              onPauseLoop={handlePauseLoop}
+              onResumeLoop={handleResumeLoop}
+              onRetryStep={handleRetryStep}
+              onRerunReviewer={handleRerunReviewer}
+            />
+          </aside>
+
+          {/* Content */}
+          <div className="app-content">
+            {/* Pipeline Status */}
+            <PipelineStatus runDetail={runDetail} />
+
+            {/* Prompt Editor */}
+            <PromptEditor
+              profiles={profiles}
+              selectedProfileId={selectedProfileId}
+              profileName={profileName}
+              plannerPrompt={plannerPrompt}
+              workerPrompt={workerPrompt}
+              reviewerPrompt={reviewerPrompt}
+              onSelectProfile={handleSelectProfile}
+              onProfileNameChange={setProfileName}
+              onPlannerChange={setPlannerPrompt}
+              onWorkerChange={setWorkerPrompt}
+              onReviewerChange={setReviewerPrompt}
+              onSave={handleSaveProfile}
+            />
+
+            {/* Payload Inspector */}
+            <PayloadInspector steps={steps} />
+
+            {/* Logs */}
+            <LogsPanel events={events} />
+          </div>
         </div>
-
-        <div className="right-column">
-          <RunControls
-            goal={goal}
-            globalContext={globalContext}
-            lastDoneThing={lastDoneThing}
-            isBusy={busy}
-            selectedRunId={selectedRunId}
-            selectedRunStatus={selectedRun?.status || null}
-            autoLoopEnabled={autoLoopEnabled}
-            onGoalChange={setGoal}
-            onGlobalContextChange={setGlobalContext}
-            onLastDoneThingChange={setLastDoneThing}
-            onStartRun={startRun}
-            onStopRun={stopRun}
-            onPauseLoop={pauseLoop}
-            onResumeLoop={resumeLoop}
-            onRetryStep={retryStep}
-            onRerunReviewer={rerunReviewer}
-          />
-
-          <PipelineStatus runDetail={runDetail} />
-        </div>
-      </div>
-
-      <StatsPanel />
-
-      <div className="grid two">
-        <PayloadInspector steps={steps} />
-        <LogsPanel events={events} />
-      </div>
-
-      <section className="panel">
-        <h2>Runs</h2>
-        <div className="run-list">
-          {runs.map((r) => (
-            <button
-              key={r.id}
-              className={`run-item ${selectedRunId === r.id ? 'active' : ''}`}
-              onClick={() => setSelectedRunId(r.id)}
-            >
-              #{r.id} · {r.status} · profile: {r.profile_name || r.profile_id}
-              <div className="small">{r.goal}</div>
-            </button>
-          ))}
-          {runs.length === 0 && <div className="muted">No runs yet.</div>}
-        </div>
-      </section>
-    </main>
+      </main>
+    </div>
   )
 }
