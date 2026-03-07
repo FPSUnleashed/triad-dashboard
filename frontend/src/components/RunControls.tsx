@@ -118,29 +118,6 @@ export function RunControls(props: Props) {
         </label>
       </div>
 
-      <div className="control-actions">
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={props.isBusy || !props.selectedRunId}
-          onClick={() => props.onRetryStep('planner')}
-        >
-          Retry Planner
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={props.isBusy || !props.selectedRunId}
-          onClick={() => props.onRetryStep('worker')}
-        >
-          Retry Worker
-        </button>
-        <button
-          className="btn btn-ghost btn-sm"
-          disabled={props.isBusy || !props.selectedRunId}
-          onClick={props.onRerunReviewer}
-        >
-          Re-run Reviewer
-        </button>
-      </div>
 
       {goalModalOpen && (
         <GoalEditorModal
