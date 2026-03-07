@@ -45,7 +45,6 @@ export function PipelineStatus({ runDetail }: Props) {
 
   return (
     <section className="pipeline-section">
-      {/* Header */}
       <div className="pipeline-header">
         <div>
           <h2 className="pipeline-title">Pipeline</h2>
@@ -56,7 +55,6 @@ export function PipelineStatus({ runDetail }: Props) {
         </div>
       </div>
 
-      {/* Step cards */}
       <div className="pipeline-steps">
         {STEPS.map((step) => {
           const status = getStatus(step)
@@ -86,34 +84,6 @@ export function PipelineStatus({ runDetail }: Props) {
           )
         })}
       </div>
-
-      {/* Meta info */}
-      {runDetail && run && (
-        <div className="pipeline-meta">
-          <div className="pipeline-meta-item">
-            <span className="pipeline-meta-label">Run ID</span>
-            <span className="pipeline-meta-value">#{run.id}</span>
-          </div>
-          <div className="pipeline-meta-item">
-            <span className="pipeline-meta-label">Engine</span>
-            <span className="pipeline-meta-value">
-              {runDetail.is_running ? 'Running' : 'Stopped'}
-            </span>
-          </div>
-          <div className="pipeline-meta-item">
-            <span className="pipeline-meta-label">Duration</span>
-            <span className="pipeline-meta-value">
-              {run.duration_formatted || '--:--'}
-            </span>
-          </div>
-          <div className="pipeline-meta-item">
-            <span className="pipeline-meta-label">Elapsed</span>
-            <span className="pipeline-meta-value">
-              {run.elapsed_formatted || '--:--'}
-            </span>
-          </div>
-        </div>
-      )}
     </section>
   )
 }

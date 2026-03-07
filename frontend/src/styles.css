@@ -1408,3 +1408,23 @@ select {
   color: var(--clay);
   opacity: 0.7;
 }
+
+
+/* prompt header single-line override */
+.prompt-toolbar-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.prompt-toolbar-label,
+.prompt-toggle-btn,
+.prompt-collapsed-meta {
+  white-space: nowrap;
+}
+
+.prompt-collapsed-meta {
+  margin-top: 0;
+}

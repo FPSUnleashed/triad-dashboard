@@ -91,17 +91,16 @@ function PromptSection({
   return (
     <div className="prompt-section">
       <div className="prompt-toolbar">
-        <label className="prompt-toolbar-label">{label}</label>
-        <button type="button" className="prompt-toggle-btn" onClick={onToggle}>
-          {collapsed ? 'Expand' : 'Collapse'}
-        </button>
+        <div className="prompt-toolbar-inline">
+          <label className="prompt-toolbar-label">{label}</label>
+          <button type="button" className="prompt-toggle-btn" onClick={onToggle}>
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+          {collapsed ? <span className="prompt-collapsed-meta">Collapsed · {lineCount} lines · {charCount} chars</span> : null}
+        </div>
       </div>
 
-      {collapsed ? (
-        <div className="prompt-collapsed-meta">
-          Collapsed · {lineCount} lines · {charCount} chars
-        </div>
-      ) : (
+      {collapsed ? null : (
         <div className="prompt-editor-wrap md-rich-wrap">
           <div ref={mountRef} />
         </div>

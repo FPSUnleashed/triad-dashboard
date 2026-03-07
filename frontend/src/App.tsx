@@ -5,7 +5,6 @@ import { PayloadInspector } from './components/PayloadInspector'
 import { PipelineStatus } from './components/PipelineStatus'
 import { PromptEditor } from './components/PromptEditor'
 import { RunControls } from './components/RunControls'
-import { StatsPanel } from './components/StatsPanel'
 import { SystemMetrics } from './components/SystemMetrics'
 import type { Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
 import './styles.css'
@@ -256,9 +255,6 @@ export default function App() {
             </div>
           </div>
           <SystemMetrics />
-          <nav className="app-nav">
-            <StatsPanel />
-          </nav>
         </div>
       </header>
 
