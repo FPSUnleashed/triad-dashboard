@@ -19,6 +19,7 @@ interface Props {
   onResumeLoop: () => void
   onRetryStep: (s: StepName) => void
   onRerunReviewer: () => void
+  onCleanWorkerSpace: () => void
 }
 
 export function RunControls(props: Props) {
@@ -96,6 +97,14 @@ export function RunControls(props: Props) {
           onClick={props.onStopRun}
         >
           Cancel
+        </button>
+        <button
+          className="btn btn-ghost"
+          disabled={!props.selectedRunId || props.isBusy || props.selectedRunStatus === 'running'}
+          onClick={props.onCleanWorkerSpace}
+          title="Clean the worker workspace for this run"
+        >
+          Clean Workspace
         </button>
       </div>
 

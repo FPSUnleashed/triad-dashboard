@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from .agent0_client import send_fresh_chat
+from .agent0_client import send_chat
 
 
 VERDICTS = ("APPROVE", "REQUEST_CHANGES", "BLOCKED_INFRA")
@@ -15,7 +15,6 @@ def build_reviewer_input(
 ) -> str:
     """Build reviewer input with both planner task and worker delivery."""
 
-    # Include planner task if provided
     planner_section = ""
     if planner_task:
         planner_section = f"[PLANNER TASK - What worker was asked to do]\n{planner_task}\n\n"
@@ -32,6 +31,7 @@ def build_reviewer_input(
         "- Required next action\n"
     )
 
+
 def parse_verdict(text: str) -> str:
     upper = text.upper()
     for v in VERDICTS:
@@ -39,5 +39,6 @@ def parse_verdict(text: str) -> str:
             return v
     return "REQUEST_CHANGES"
 
-async def run_reviewer(input_payload: str) -> dict:
-    return await send_fresh_chat(input_payload)
+
+async def run_reviewer(input_payload: str, context_id: str | None = None) -> dict:
+    return await send_chat(input_payload, context_id=context_id)

@@ -54,7 +54,7 @@ def fetch_notion_content(page_ids: list[str]) -> str:
     return "\n".join(contents)
 
 
-def build_planner_input(planner_prompt: str, run_goal: str, global_context: str, last_done_thing: str) -> str:
+def build_planner_input(planner_prompt: str, run_goal: str, global_context: str, last_done_thing: str, planner_state: str = '') -> str:
     """Build planner input, always fetching required Notion pages + any in global_context."""
 
     # Always include required Notion pages
@@ -91,9 +91,19 @@ def build_planner_input(planner_prompt: str, run_goal: str, global_context: str,
         "[GLOBAL CONTEXT]",
         global_context,
         "",
+    ])
+
+    if planner_state:
+        parts.extend([
+            planner_state,
+            "",
+        ])
+
+    parts.extend([
         "[LAST DONE THING / REVIEW REPORT]",
         last_done_thing or "(Fresh start - no previous cycle)",
         "",
+        "Treat the RUN STATE block as canonical. If RUN_MODE is IN_PROGRESS, continue or revise the stored task list instead of acting like this is a blank slate.",
         "Return a worker-ready task packet following the strict output format."
     ])
 

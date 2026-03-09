@@ -3,10 +3,11 @@ import { api } from './api'
 import { LogsPanel } from './components/LogsPanel'
 import { PayloadInspector } from './components/PayloadInspector'
 import { PipelineStatus } from './components/PipelineStatus'
+import { PlannerStepsPanel } from './components/PlannerStepsPanel'
 import { PromptEditor } from './components/PromptEditor'
 import { RunControls } from './components/RunControls'
 import { SystemMetrics } from './components/SystemMetrics'
-import type { Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
+import type { PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
 import './styles.css'
 
 export default function App() {
@@ -36,14 +37,10 @@ export default function App() {
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null)
   const [steps, setSteps] = useState<RunStep[]>([])
   const [events, setEvents] = useState<RunEvent[]>([])
+  const [plannerState, setPlannerState] = useState<PlannerTaskStateResponse | null>(null)
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-
-  const selectedProfile = useMemo(
-    () => profiles.find((p) => p.id === selectedProfileId) || null,
-    [profiles, selectedProfileId]
-  )
 
   const selectedRun = useMemo(
     () => runs.find((r) => r.id === selectedRunId) || runDetail?.run || null,
@@ -70,13 +67,15 @@ export default function App() {
   }
 
   const refreshRunData = async (runId: number) => {
-    const [detail, st, ev] = await Promise.all([
+    const [detail, st, taskState, ev] = await Promise.all([
       api.getRun(runId),
       api.getRunSteps(runId),
+      api.getPlannerTaskSteps(runId),
       api.getRunEvents(runId)
     ])
     setRunDetail(detail)
     setSteps(st)
+    setPlannerState(taskState)
     setEvents(ev)
   }
 
@@ -94,18 +93,18 @@ export default function App() {
   useEffect(() => {
     if (selectedRunId) {
       refreshRunData(selectedRunId)
-      // Poll while run is active
       const interval = setInterval(async () => {
         try {
           await refreshRunData(selectedRunId)
           await refreshRuns()
-        } catch { /* ignore */ }
+        } catch {}
       }, 3000)
       return () => clearInterval(interval)
     } else {
       setRunDetail(null)
       setSteps([])
       setEvents([])
+      setPlannerState(null)
     }
   }, [selectedRunId])
 
@@ -213,6 +212,32 @@ export default function App() {
     }
   }
 
+  const handleClearPlannerSteps = async () => {
+    if (!selectedRunId) return
+    setBusy(true)
+    try {
+      const state = await api.clearPlannerTaskSteps(selectedRunId)
+      setPlannerState(state)
+      await refreshRuns()
+    } catch (e: unknown) {
+      setError(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const handleCleanWorkerSpace = async () => {
+    if (!selectedRunId) return
+    setBusy(true)
+    try {
+      await api.cleanWorkerSpace(selectedRunId)
+    } catch (e) {
+      console.error('Failed to clean worker space', e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+
   const handleSaveProfile = async () => {
     if (!selectedProfileId) return
     setBusy(true)
@@ -244,7 +269,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Header */}
       <header className="app-header">
         <div className="app-header-inner">
           <div className="app-brand">
@@ -258,7 +282,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="app-main">
         {error && (
           <div className="error-banner">
@@ -268,24 +291,16 @@ export default function App() {
         )}
 
         <div className="app-grid">
-          {/* Sidebar */}
           <aside className="app-sidebar">
-            {/* Run Selector */}
             <section className="panel">
               <div className="panel-header">
                 <h2 className="panel-title">Runs</h2>
-                <button 
-                  className="btn btn-ghost btn-sm" 
-                  onClick={refreshRuns}
-                  disabled={busy}
-                >
+                <button className="btn btn-ghost btn-sm" onClick={refreshRuns} disabled={busy}>
                   Refresh
                 </button>
               </div>
               <div className="run-selector">
-                {runs.length === 0 && (
-                  <div className="text-muted text-sm">No runs yet</div>
-                )}
+                {runs.length === 0 && <div className="text-muted text-sm">No runs yet</div>}
                 {runs.map((run) => (
                   <div
                     key={run.id}
@@ -299,7 +314,6 @@ export default function App() {
               </div>
             </section>
 
-            {/* Run Controls */}
             <RunControls
               goal={goal}
               globalContext={globalContext}
@@ -317,15 +331,21 @@ export default function App() {
               onResumeLoop={handleResumeLoop}
               onRetryStep={handleRetryStep}
               onRerunReviewer={handleRerunReviewer}
+              onCleanWorkerSpace={handleCleanWorkerSpace}
             />
           </aside>
 
-          {/* Content */}
           <div className="app-content">
-            {/* Pipeline Status */}
             <PipelineStatus runDetail={runDetail} />
 
-            {/* Prompt Editor */}
+            <PlannerStepsPanel
+              plannerState={plannerState}
+              selectedRunId={selectedRunId}
+              selectedRunStatus={selectedRun?.status || null}
+              isBusy={busy}
+              onClear={handleClearPlannerSteps}
+            />
+
             <PromptEditor
               profiles={profiles}
               selectedProfileId={selectedProfileId}
@@ -341,10 +361,7 @@ export default function App() {
               onSave={handleSaveProfile}
             />
 
-            {/* Payload Inspector */}
             <PayloadInspector steps={steps} />
-
-            {/* Logs */}
             <LogsPanel events={events} />
           </div>
         </div>

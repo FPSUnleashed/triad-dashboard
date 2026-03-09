@@ -2,6 +2,8 @@ export type StepName = 'planner' | 'worker' | 'reviewer'
 
 export type StepStatus = 'pending' | 'running' | 'paused' | 'passed' | 'failed' | 'blocked' | 'cancelled'
 
+export type PlannerTaskStepStatus = 'pending' | 'in_progress' | 'blocked' | 'done' | 'cancelled'
+
 export interface Profile {
   id: number
   name: string
@@ -59,6 +61,35 @@ export interface RunDetailResponse {
   step_status: Record<StepName, Partial<RunStep> & { step_name: StepName; status: StepStatus }>
 }
 
+export interface PlannerTaskStep {
+  id: number
+  run_id: number
+  position: number
+  title: string
+  status: PlannerTaskStepStatus
+  details: string
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export interface PlannerTaskStateSummary {
+  run_mode: 'fresh' | 'in_progress'
+  state_title: string
+  state_detail: string
+  has_stored_task_steps: boolean
+  total_stored_task_steps: number
+  open_task_steps: number
+  completed_task_steps: number
+  cancelled_task_steps: number
+  current_step_title: string | null
+  current_step_status: PlannerTaskStepStatus | null
+}
+
+export interface PlannerTaskStateResponse extends PlannerTaskStateSummary {
+  steps: PlannerTaskStep[]
+}
+
 export interface LoopState {
   auto_loop_enabled: boolean
   ok?: boolean
@@ -79,7 +110,6 @@ export interface Stats {
   total_all_steps_seconds: number
   total_all_steps_formatted: string
 }
-
 
 export interface SystemMetrics {
   cpu_percent: number

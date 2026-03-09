@@ -1,4 +1,4 @@
-import type { LoopState, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats, SystemMetrics } from './types'
+import type { LoopState, PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats, SystemMetrics } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api'
 
@@ -40,6 +40,8 @@ export const api = {
 
   getRun: (runId: number) => req<RunDetailResponse>(`/runs/${runId}`),
   getRunSteps: (runId: number) => req<RunStep[]>(`/runs/${runId}/steps`),
+  getPlannerTaskSteps: (runId: number) => req<PlannerTaskStateResponse>(`/runs/${runId}/task-steps`),
+  clearPlannerTaskSteps: (runId: number) => req<PlannerTaskStateResponse & { ok: boolean }>(`/runs/${runId}/task-steps/clear`, { method: 'POST' }),
   getRunEvents: (runId: number) => req<RunEvent[]>(`/runs/${runId}/events`),
 
   stopRun: (runId: number) => req<{ ok: boolean; run_id: number; task_cancelled: boolean }>(`/runs/${runId}/stop`, {
@@ -64,6 +66,8 @@ export const api = {
   getLoopState: () => req<LoopState>('/loop/state'),
   pauseLoop: () => req<LoopState>('/loop/pause', { method: 'POST' }),
   resumeLoop: () => req<LoopState>('/loop/resume', { method: 'POST' }),
+
+  cleanWorkerSpace: (runId: number) => req<{ ok: boolean; run_id: number; workspace_existed: boolean; workspace_cleaned: boolean; workspace_path: string }>(`/runs/${runId}/clean-worker-space`, { method: 'POST' }),
 
   getStats: () => req<Stats>('/stats'),
 

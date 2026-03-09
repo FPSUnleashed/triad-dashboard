@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from .config import ALLOWED_ORIGINS, MAX_CONTEXT_SIZE, MAX_GOAL_SIZE, MAX_PROMPT_SIZE
 from .db import execute, fetch_all, fetch_one, init_db, insert_and_get_id, json_dumps, utc_now
-from .runner import latest_step_statuses, runner
+from .runner import latest_step_statuses, runner, _get_worker_workspace_path, _clean_worker_workspace, _workspace_exists
 
 import psutil
 
@@ -362,6 +362,92 @@ def get_run(run_id: int) -> dict:
         "run": run,
         "is_running": run["status"] == "running",
         "step_status": step_status,
+    }
+
+
+def build_planner_task_state(run_id: int) -> dict:
+    run = fetch_one("SELECT id FROM runs WHERE id=?", (run_id,))
+    if not run:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    steps = fetch_all(
+        "SELECT id, run_id, position, title, status, details, created_at, updated_at, completed_at FROM task_steps WHERE run_id=? ORDER BY position ASC, id ASC",
+        (run_id,),
+    )
+
+    total = len(steps)
+    completed = sum(1 for step in steps if step.get("status") == "done")
+    cancelled = sum(1 for step in steps if step.get("status") == "cancelled")
+    open_steps = sum(1 for step in steps if step.get("status") not in ("done", "cancelled"))
+    current = next((step for step in steps if step.get("status") == "in_progress"), None)
+    if current is None:
+        current = next((step for step in steps if step.get("status") in ("pending", "blocked")), None)
+
+    if total == 0:
+        state_title = "Fresh run"
+        state_detail = "No planner steps are stored for this run yet. The next planner cycle will be treated as a fresh run."
+        run_mode = "fresh"
+    else:
+        state_title = "In progress"
+        state_detail = "This run has a stored planner-authored step list. The planner should continue from this durable task memory until the list is cleared or completed."
+        run_mode = "in_progress"
+
+    return {
+        "run_mode": run_mode,
+        "state_title": state_title,
+        "state_detail": state_detail,
+        "has_stored_task_steps": total > 0,
+        "total_stored_task_steps": total,
+        "open_task_steps": open_steps,
+        "completed_task_steps": completed,
+        "cancelled_task_steps": cancelled,
+        "current_step_title": current.get("title") if current else None,
+        "current_step_status": current.get("status") if current else None,
+        "steps": steps,
+    }
+
+
+@r.get("/runs/{run_id}/task-steps")
+def get_planner_task_steps(run_id: int) -> dict:
+    return build_planner_task_state(run_id)
+
+
+@r.post("/runs/{run_id}/task-steps/clear")
+def clear_planner_task_steps(run_id: int) -> dict:
+    run = fetch_one("SELECT id FROM runs WHERE id=?", (run_id,))
+    if not run:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    execute("DELETE FROM task_steps WHERE run_id=?", (run_id,))
+    execute("UPDATE runs SET updated_at=? WHERE id=?", (utc_now(), run_id))
+    execute(
+        "INSERT INTO run_events(run_id, level, message, meta, created_at) VALUES(?,?,?,?,?)",
+        (run_id, "info", "Cleared planner task steps", json_dumps({"action": "clear_task_steps"}), utc_now()),
+    )
+    state = build_planner_task_state(run_id)
+    return {"ok": True, **state}
+
+
+@r.post("/runs/{run_id}/clean-worker-space")
+def clean_worker_space(run_id: int) -> dict:
+    """Clean the worker workspace for a run."""
+    run = fetch_one("SELECT id FROM runs WHERE id=?", (run_id,))
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # Don't allow cleaning while run is actively running
+    if runner.is_running(run_id):
+        raise HTTPException(status_code=400, detail="Cannot clean workspace while run is active")
+
+    existed = _workspace_exists(run_id)
+    cleaned = _clean_worker_workspace(run_id)
+
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "workspace_existed": existed,
+        "workspace_cleaned": cleaned,
+        "workspace_path": str(_get_worker_workspace_path(run_id)),
     }
 
 

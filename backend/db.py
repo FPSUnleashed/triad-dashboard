@@ -215,6 +215,19 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(run_id) REFERENCES runs(id)
             );
+
+            CREATE TABLE IF NOT EXISTS task_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('pending','in_progress','done','blocked','cancelled')),
+                details TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                completed_at TEXT,
+                FOREIGN KEY(run_id) REFERENCES runs(id)
+            );
             """
         )
 
@@ -227,6 +240,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_runs_profile ON runs(profile_id);
             CREATE INDEX IF NOT EXISTS idx_steps_run_name_attempt ON run_steps(run_id, step_name, attempt);
             CREATE INDEX IF NOT EXISTS idx_events_run ON run_events(run_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_task_steps_run_pos ON task_steps(run_id, position);
+            CREATE INDEX IF NOT EXISTS idx_task_steps_run_status ON task_steps(run_id, status);
             """
         )
 
