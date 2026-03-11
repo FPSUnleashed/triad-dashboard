@@ -13,6 +13,7 @@ from .adapters.reviewer_adapter import build_reviewer_input, parse_verdict, run_
 from .db import execute, fetch_all, fetch_one, insert_and_get_id, json_dumps, utc_now
 # Worker workspace base directory
 WORKSPACE_BASE = Path(__file__).parent.parent / "tmp" / "worker_runs"
+MAX_DEBUG_ITERATIONS = 12  # Max worker↔reviewer debug loop iterations
 
 
 
