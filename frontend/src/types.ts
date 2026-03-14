@@ -14,12 +14,16 @@ export interface Profile {
   updated_at: string
 }
 
+export type RunStatus = 'pending' | 'running' | 'paused' | 'awaiting_human_vm' | 'success' | 'failed' | 'blocked' | 'cancelled'
+
+export type HumanVmResponseOption = 'completed' | 'failed' | 'could_not_complete' | 'not_now' | 'try_yourself'
+
 export interface Run {
   id: number
   goal: string
   global_context: string
   last_done_thing: string
-  status: 'pending' | 'running' | 'paused' | 'success' | 'failed' | 'blocked' | 'cancelled'
+  status: RunStatus
   profile_id: number
   profile_name?: string
   created_at: string
@@ -122,4 +126,28 @@ export interface SystemMetrics {
     ram_alloc?: string
     kvm?: boolean
   }
+}
+
+export interface HumanVmRequest {
+  id: number
+  run_id: number
+  step_name: 'worker' | 'reviewer'
+  step_id: number
+  agent_context_id: string | null
+  status: 'pending' | 'responded' | 'dismissed'
+  title: string
+  instructions: string[]
+  context_json: string
+  context: Record<string, unknown>
+  response_option: HumanVmResponseOption | null
+  response_report: string
+  response_meta: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  responded_at: string | null
+}
+
+export interface HumanVmRequestsResponse {
+  active_request: HumanVmRequest | null
+  requests: HumanVmRequest[]
 }

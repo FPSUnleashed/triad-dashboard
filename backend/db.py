@@ -6,7 +6,7 @@ from typing import Any
 
 from .config import DB_PATH
 
-RUN_STATUSES = ("running", "paused", "success", "failed", "blocked", "cancelled")
+RUN_STATUSES = ("running", "paused", "awaiting_human_vm", "success", "failed", "blocked", "cancelled")
 STEP_STATUSES = ("pending", "running", "paused", "passed", "failed", "blocked", "cancelled")
 
 
@@ -52,7 +52,7 @@ def _migrate_runs_if_needed(conn: sqlite3.Connection) -> None:
     sql = _table_sql(conn, "runs")
     if not sql:
         return
-    if "paused" in sql and "cancelled" in sql:
+    if "awaiting_human_vm" in sql and "cancelled" in sql:
         return
 
     conn.execute("PRAGMA foreign_keys=OFF;")
@@ -64,7 +64,7 @@ def _migrate_runs_if_needed(conn: sqlite3.Connection) -> None:
             goal TEXT NOT NULL,
             global_context TEXT NOT NULL DEFAULT '',
             last_done_thing TEXT NOT NULL DEFAULT '',
-            status TEXT NOT NULL CHECK(status IN ('running','paused','success','failed','blocked','cancelled')),
+            status TEXT NOT NULL CHECK(status IN ('running','paused','awaiting_human_vm','success','failed','blocked','cancelled')),
             profile_id INTEGER NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
@@ -165,6 +165,52 @@ def _migrate_run_events_if_needed(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA foreign_keys=ON;")
 
 
+def _migrate_human_vm_requests_if_needed(conn: sqlite3.Connection) -> None:
+    sql = _table_sql(conn, "human_vm_requests")
+    if not sql:
+        return
+    if "context_json" in sql and "response_meta" in sql:
+        return
+
+    conn.execute("PRAGMA foreign_keys=OFF;")
+    conn.execute("ALTER TABLE human_vm_requests RENAME TO human_vm_requests_old;")
+    conn.execute(
+        """
+        CREATE TABLE human_vm_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL,
+            step_name TEXT NOT NULL CHECK(step_name IN ('worker','reviewer')),
+            step_id INTEGER NOT NULL,
+            agent_context_id TEXT,
+            status TEXT NOT NULL CHECK(status IN ('pending','responded','dismissed')),
+            title TEXT NOT NULL,
+            instructions TEXT NOT NULL,
+            context_json TEXT NOT NULL,
+            response_option TEXT,
+            response_report TEXT NOT NULL DEFAULT '',
+            response_meta TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            responded_at TEXT,
+            FOREIGN KEY(run_id) REFERENCES runs(id),
+            FOREIGN KEY(step_id) REFERENCES run_steps(id)
+        );
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO human_vm_requests(
+            id, run_id, step_name, step_id, agent_context_id, status, title, instructions, context_json, response_option, response_report, response_meta, created_at, updated_at, responded_at
+        )
+        SELECT id, run_id, step_name, step_id, agent_context_id, status, title, instructions,
+               COALESCE(context_json, '{}'), response_option, COALESCE(response_report, ''), COALESCE(response_meta, '{}'), created_at, updated_at, responded_at
+        FROM human_vm_requests_old;
+        """
+    )
+    conn.execute("DROP TABLE human_vm_requests_old;")
+    conn.execute("PRAGMA foreign_keys=ON;")
+
+
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(
@@ -184,7 +230,7 @@ def init_db() -> None:
                 goal TEXT NOT NULL,
                 global_context TEXT NOT NULL DEFAULT '',
                 last_done_thing TEXT NOT NULL DEFAULT '',
-                status TEXT NOT NULL CHECK(status IN ('running','paused','success','failed','blocked','cancelled')),
+                status TEXT NOT NULL CHECK(status IN ('running','paused','awaiting_human_vm','success','failed','blocked','cancelled')),
                 profile_id INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
@@ -228,12 +274,33 @@ def init_db() -> None:
                 completed_at TEXT,
                 FOREIGN KEY(run_id) REFERENCES runs(id)
             );
+
+            CREATE TABLE IF NOT EXISTS human_vm_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                step_name TEXT NOT NULL CHECK(step_name IN ('worker','reviewer')),
+                step_id INTEGER NOT NULL,
+                agent_context_id TEXT,
+                status TEXT NOT NULL CHECK(status IN ('pending','responded','dismissed')),
+                title TEXT NOT NULL,
+                instructions TEXT NOT NULL,
+                context_json TEXT NOT NULL,
+                response_option TEXT,
+                response_report TEXT NOT NULL DEFAULT '',
+                response_meta TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                responded_at TEXT,
+                FOREIGN KEY(run_id) REFERENCES runs(id),
+                FOREIGN KEY(step_id) REFERENCES run_steps(id)
+            );
             """
         )
 
         _migrate_runs_if_needed(conn)
         _migrate_run_steps_if_needed(conn)
         _migrate_run_events_if_needed(conn)
+        _migrate_human_vm_requests_if_needed(conn)
 
         conn.executescript(
             """
@@ -242,6 +309,8 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_events_run ON run_events(run_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_task_steps_run_pos ON task_steps(run_id, position);
             CREATE INDEX IF NOT EXISTS idx_task_steps_run_status ON task_steps(run_id, status);
+            CREATE INDEX IF NOT EXISTS idx_human_vm_requests_run_status ON human_vm_requests(run_id, status, created_at);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_human_vm_one_active_per_run ON human_vm_requests(run_id) WHERE status='pending';
             """
         )
 
@@ -254,7 +323,6 @@ def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
 
 def rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
     return [row_to_dict(r) for r in rows if r is not None]  # type: ignore[arg-type]
-
 
 def fetch_one(query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
     with get_conn() as conn:

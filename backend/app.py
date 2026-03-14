@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 import os
 
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -90,6 +90,29 @@ class RunCreatePayload(BaseModel):
 
 class RetryPayload(BaseModel):
     step: Literal["planner", "worker", "reviewer"]
+
+
+class HumanVmResponsePayload(BaseModel):
+    response_option: Literal["completed", "failed", "could_not_complete", "not_now", "try_yourself"]
+    report: str = Field(default="", max_length=MAX_CONTEXT_SIZE)
+
+
+def parse_json_field(raw: Any, fallback: Any) -> Any:
+    if raw in (None, ""):
+        return fallback
+    try:
+        import json
+        return json.loads(raw)
+    except Exception:
+        return fallback
+
+
+def serialize_human_vm_request(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    out["instructions"] = parse_json_field(out.get("instructions"), [])
+    out["context"] = parse_json_field(out.get("context_json"), {})
+    out["response_meta"] = parse_json_field(out.get("response_meta"), {})
+    return out
 
 
 @app.on_event("startup")
@@ -449,6 +472,29 @@ def clean_worker_space(run_id: int) -> dict:
         "workspace_cleaned": cleaned,
         "workspace_path": str(_get_worker_workspace_path(run_id)),
     }
+
+
+@r.get("/runs/{run_id}/human-vm")
+def get_human_vm_requests(run_id: int) -> dict:
+    run = fetch_one("SELECT id FROM runs WHERE id=?", (run_id,))
+    if not run:
+        raise HTTPException(status_code=404, detail="run not found")
+    rows = fetch_all("SELECT * FROM human_vm_requests WHERE run_id=? ORDER BY id DESC", (run_id,))
+    serialized = [serialize_human_vm_request(r) for r in rows]
+    active = next((r for r in serialized if r.get("status") == "pending"), None)
+    return {"active_request": active, "requests": serialized}
+
+
+@r.post("/runs/{run_id}/human-vm/{request_id}/respond")
+async def respond_human_vm_request(run_id: int, request_id: int, payload: HumanVmResponsePayload) -> dict:
+    run = fetch_one("SELECT * FROM runs WHERE id=?", (run_id,))
+    if not run:
+        raise HTTPException(status_code=404, detail="run not found")
+    try:
+        req = await runner.respond_human_vm_request(run_id, request_id, payload.response_option, payload.report)
+        return {"ok": True, "request": serialize_human_vm_request(req)}
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @r.get("/runs/{run_id}/steps")

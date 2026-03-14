@@ -1,4 +1,4 @@
-import type { LoopState, PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats, SystemMetrics } from './types'
+import type { HumanVmRequestsResponse, HumanVmResponseOption, LoopState, PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName, Stats, SystemMetrics } from './types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') || '/api'
 
@@ -43,6 +43,8 @@ export const api = {
   getPlannerTaskSteps: (runId: number) => req<PlannerTaskStateResponse>(`/runs/${runId}/task-steps`),
   clearPlannerTaskSteps: (runId: number) => req<PlannerTaskStateResponse & { ok: boolean }>(`/runs/${runId}/task-steps/clear`, { method: 'POST' }),
   getRunEvents: (runId: number) => req<RunEvent[]>(`/runs/${runId}/events`),
+  getHumanVmRequests: (runId: number) => req<HumanVmRequestsResponse>(`/runs/${runId}/human-vm`),
+  respondHumanVmRequest: (runId: number, requestId: number, payload: { response_option: HumanVmResponseOption; report: string }) => req<{ ok: boolean }>(`/runs/${runId}/human-vm/${requestId}/respond`, { method: 'POST', body: JSON.stringify(payload) }),
 
   stopRun: (runId: number) => req<{ ok: boolean; run_id: number; task_cancelled: boolean }>(`/runs/${runId}/stop`, {
     method: 'POST'

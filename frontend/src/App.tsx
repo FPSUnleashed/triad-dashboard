@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import { HumanVmPanel } from './components/HumanVmPanel'
 import { LogsPanel } from './components/LogsPanel'
 import { PayloadInspector } from './components/PayloadInspector'
 import { PipelineStatus } from './components/PipelineStatus'
@@ -7,7 +8,7 @@ import { PlannerStepsPanel } from './components/PlannerStepsPanel'
 import { PromptEditor } from './components/PromptEditor'
 import { RunControls } from './components/RunControls'
 import { SystemMetrics } from './components/SystemMetrics'
-import type { PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
+import type { HumanVmRequest, PlannerTaskStateResponse, Profile, Run, RunDetailResponse, RunEvent, RunStep, StepName } from './types'
 import './styles.css'
 
 export default function App() {
@@ -38,6 +39,9 @@ export default function App() {
   const [steps, setSteps] = useState<RunStep[]>([])
   const [events, setEvents] = useState<RunEvent[]>([])
   const [plannerState, setPlannerState] = useState<PlannerTaskStateResponse | null>(null)
+  const [humanVmActiveRequest, setHumanVmActiveRequest] = useState<HumanVmRequest | null>(null)
+  const [humanVmHistory, setHumanVmHistory] = useState<HumanVmRequest[]>([])
+  const [notifiedRequestId, setNotifiedRequestId] = useState<number | null>(null)
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -67,16 +71,19 @@ export default function App() {
   }
 
   const refreshRunData = async (runId: number) => {
-    const [detail, st, taskState, ev] = await Promise.all([
+    const [detail, st, taskState, ev, humanVm] = await Promise.all([
       api.getRun(runId),
       api.getRunSteps(runId),
       api.getPlannerTaskSteps(runId),
-      api.getRunEvents(runId)
+      api.getRunEvents(runId),
+      api.getHumanVmRequests(runId)
     ])
     setRunDetail(detail)
     setSteps(st)
     setPlannerState(taskState)
     setEvents(ev)
+    setHumanVmActiveRequest(humanVm.active_request)
+    setHumanVmHistory(humanVm.requests)
   }
 
   const refreshLoopState = async () => {
@@ -105,6 +112,8 @@ export default function App() {
       setSteps([])
       setEvents([])
       setPlannerState(null)
+      setHumanVmActiveRequest(null)
+      setHumanVmHistory([])
     }
   }, [selectedRunId])
 
@@ -131,6 +140,34 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('triad_lastDoneThing', lastDoneThing)
   }, [lastDoneThing])
+
+  useEffect(() => {
+    if (!humanVmActiveRequest || !selectedRunId || humanVmActiveRequest.id === notifiedRequestId) return
+    setNotifiedRequestId(humanVmActiveRequest.id)
+    document.title = `🔔 Human VM needed · Run #${selectedRunId}`
+    try {
+      const AudioCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (AudioCtor) {
+        const ctx = new AudioCtor()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.frequency.value = 880
+        gain.gain.value = 0.04
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start()
+        osc.stop(ctx.currentTime + 0.25)
+      }
+    } catch {}
+    if ('Notification' in window) {
+      if (Notification.permission === 'default') Notification.requestPermission().catch(() => undefined)
+      if (Notification.permission === 'granted') new Notification(`Human VM needed for run #${selectedRunId}`, { body: humanVmActiveRequest.title })
+    }
+  }, [humanVmActiveRequest, notifiedRequestId, selectedRunId])
+
+  useEffect(() => {
+    if (!humanVmActiveRequest) document.title = 'Triad Dashboard'
+  }, [humanVmActiveRequest])
 
   const handleStartRun = async () => {
     if (!selectedProfileId) return
@@ -238,6 +275,20 @@ export default function App() {
   }
 
 
+  const handleRespondHumanVm = async (requestId: number, response: 'completed' | 'failed' | 'could_not_complete' | 'not_now' | 'try_yourself', report: string) => {
+    if (!selectedRunId) return
+    setBusy(true)
+    try {
+      await api.respondHumanVmRequest(selectedRunId, requestId, { response_option: response, report })
+      await refreshRuns()
+      await refreshRunData(selectedRunId)
+    } catch (e: unknown) {
+      setError(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const handleSaveProfile = async () => {
     if (!selectedProfileId) return
     setBusy(true)
@@ -283,6 +334,8 @@ export default function App() {
       </header>
 
       <main className="app-main">
+        {humanVmActiveRequest && selectedRunId && <div className="human-vm-banner">Human VM task pending for run #{selectedRunId}: {humanVmActiveRequest.title}</div>}
+
         {error && (
           <div className="error-banner">
             <span>{error}</span>
@@ -337,6 +390,8 @@ export default function App() {
 
           <div className="app-content">
             <PipelineStatus runDetail={runDetail} />
+
+            <HumanVmPanel runId={selectedRunId} request={humanVmActiveRequest} history={humanVmHistory} isBusy={busy} onRespond={handleRespondHumanVm} />
 
             <PlannerStepsPanel
               plannerState={plannerState}

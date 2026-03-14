@@ -1486,3 +1486,17 @@ select {
 .pm-row:hover { background: rgba(0,0,0,.02); }
 .pm-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
 .pm-text { font-size: 13px; color: var(--charcoal); line-height: 1.4; }
+
+.human-vm-banner { background:#fff4e5; border:1px solid #f59e0b; color:#8a4b00; border-radius:var(--radius-md); padding:var(--space-md); margin-bottom:var(--space-lg); font-weight:600; }
+.human-vm-panel { border-color:#f1c27d; }
+.human-vm-run-badge { padding:6px 10px; border-radius:var(--radius-full); background:var(--bg-secondary); font-size:var(--font-size-sm); }
+.human-vm-active,.human-vm-history { display:flex; flex-direction:column; gap:var(--space-md); }
+.human-vm-meta { display:flex; justify-content:space-between; gap:var(--space-md); align-items:center; }
+.human-vm-instructions { padding-left:20px; display:flex; flex-direction:column; gap:6px; }
+.human-vm-context { background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:var(--radius-md); padding:var(--space-md); }
+.human-vm-context-row { display:grid; grid-template-columns:180px 1fr; gap:var(--space-md); padding:4px 0; }
+.human-vm-context-row dt { font-weight:600; color:var(--text-secondary); }
+.human-vm-context-row dd { word-break:break-word; }
+.human-vm-actions { display:flex; flex-wrap:wrap; gap:var(--space-sm); }
+.human-vm-history-list { display:flex; flex-direction:column; gap:var(--space-sm); }
+.human-vm-history-item { border:1px solid var(--border-light); border-radius:var(--radius-md); padding:var(--space-md); background:var(--bg-secondary); }

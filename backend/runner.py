@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import asyncio
+import json
 import re
 
 import shutil
@@ -14,6 +15,8 @@ from .db import execute, fetch_all, fetch_one, insert_and_get_id, json_dumps, ut
 # Worker workspace base directory
 WORKSPACE_BASE = Path(__file__).parent.parent / "tmp" / "worker_runs"
 MAX_DEBUG_ITERATIONS = 12  # Max worker↔reviewer debug loop iterations
+HUMAN_VM_PACKET_RE = re.compile(r"HUMAN_VM_TASK_REQUEST\s*(\{.*?\})", re.DOTALL)
+ALLOWED_HUMAN_VM_RESPONSE_OPTIONS = {"completed", "failed", "could_not_complete", "not_now", "try_yourself"}
 
 
 
@@ -67,6 +70,29 @@ def _workspace_exists(run_id: int) -> bool:
     """Check if a worker workspace exists."""
     return _get_worker_workspace_path(run_id).exists()
 
+
+def parse_human_vm_packet(text: str) -> dict[str, Any] | None:
+    if not text:
+        return None
+    match = HUMAN_VM_PACKET_RE.search(text)
+    if not match:
+        return None
+    try:
+        packet = json.loads(match.group(1))
+    except Exception:
+        return None
+    if not isinstance(packet, dict):
+        return None
+    title = str(packet.get('title') or '').strip()[:500]
+    instructions = packet.get('instructions')
+    if not title or not isinstance(instructions, list):
+        return None
+    normalized = [str(item).strip()[:2000] for item in instructions if str(item).strip()]
+    if not normalized:
+        return None
+    context = packet.get('context') if isinstance(packet.get('context'), dict) else {}
+    return {'title': title, 'instructions': normalized, 'context': context}
+
 class TriadRunner:
     def __init__(self) -> None:
         self._tasks: dict[int, asyncio.Task] = {}
@@ -112,7 +138,7 @@ class TriadRunner:
         )
 
         row = fetch_one("SELECT status FROM runs WHERE id=?", (run_id,))
-        if row and row.get("status") in ("running", "paused"):
+        if row and row.get("status") in ("running", "paused", "awaiting_human_vm"):
             self._set_run_status(run_id, "cancelled")
 
         self._event(run_id, "warn", "Run cancelled by user", {"reason": reason, "task_cancelled": task_cancelled})
@@ -154,8 +180,8 @@ class TriadRunner:
             raise RuntimeError("run not found")
         if self.is_running(run_id):
             raise RuntimeError("run is already running")
-        if row.get("status") != "paused":
-            raise RuntimeError("only paused runs can be resumed")
+        if row.get("status") not in ("paused", "awaiting_human_vm"):
+            raise RuntimeError("only paused or awaiting_human_vm runs can be resumed")
 
         start_step = self._determine_resume_step(run_id)
         self._pause_requests.discard(run_id)
@@ -164,6 +190,60 @@ class TriadRunner:
         self._event(run_id, "info", "Run resumed", {"start_step": start_step})
         await self.start(run_id, start_step)
         return {"start_step": start_step}
+
+    def _get_active_human_vm_request(self, run_id: int) -> dict[str, Any] | None:
+        return fetch_one(
+            "SELECT * FROM human_vm_requests WHERE run_id=? AND status='pending' ORDER BY id DESC LIMIT 1",
+            (run_id,),
+        )
+
+    def _create_human_vm_request(self, run_id: int, step_name: str, step_id: int, agent_context_id: str | None, packet: dict[str, Any]) -> dict[str, Any]:
+        active = self._get_active_human_vm_request(run_id)
+        if active:
+            raise RuntimeError('human vm request already active for run')
+        now = utc_now()
+        request_id = insert_and_get_id(
+            """
+            INSERT INTO human_vm_requests(
+                run_id, step_name, step_id, agent_context_id, status, title, instructions, context_json, response_option, response_report, response_meta, created_at, updated_at, responded_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (run_id, step_name, step_id, agent_context_id, 'pending', packet['title'], json_dumps(packet['instructions']), json_dumps(packet.get('context') or {}), None, '', json_dumps({}), now, now, None),
+        )
+        self._set_run_status(run_id, 'awaiting_human_vm')
+        self._event(run_id, 'warn', 'Awaiting human VM task response', {'request_id': request_id, 'step_name': step_name, 'title': packet['title']})
+        return fetch_one('SELECT * FROM human_vm_requests WHERE id=?', (request_id,)) or {}
+
+    def _build_human_vm_resume_message(self, req: dict[str, Any], response_option: str, report: str) -> str:
+        return (
+            '[HUMAN_VM_RESPONSE]\n'
+            f'TITLE: {req.get("title", "")}\n'
+            f'RESPONSE_OPTION: {response_option}\n'
+            'USER_REPORT:\n' + report.strip() + '\n\n'
+            'Resume the same role and context from this exact handoff. Do not ask planner to redo the task; continue based on the user report.'
+        )
+
+    async def respond_human_vm_request(self, run_id: int, request_id: int, response_option: str, report: str) -> dict[str, Any]:
+        if response_option not in ALLOWED_HUMAN_VM_RESPONSE_OPTIONS:
+            raise RuntimeError('invalid human vm response option')
+        req = fetch_one('SELECT * FROM human_vm_requests WHERE id=? AND run_id=?', (request_id, run_id))
+        if not req:
+            raise RuntimeError('human vm request not found')
+        if req.get('status') != 'pending':
+            raise RuntimeError('human vm request is not pending')
+        now = utc_now()
+        execute(
+            "UPDATE human_vm_requests SET status=?, response_option=?, response_report=?, response_meta=?, updated_at=?, responded_at=? WHERE id=?",
+            ('dismissed' if response_option == 'not_now' else 'responded', response_option, report, json_dumps({'response_option': response_option}), now, now, request_id),
+        )
+        execute(
+            "UPDATE run_steps SET status='passed', output_payload=?, error=NULL, ended_at=COALESCE(ended_at, ?), agent_context_id=COALESCE(agent_context_id, ?) WHERE id=?",
+            (self._build_human_vm_resume_message(req, response_option, report), now, req.get('agent_context_id'), req['step_id']),
+        )
+        self._event(run_id, 'info', 'Human VM request responded', {'request_id': request_id, 'response_option': response_option})
+        self._set_run_status(run_id, 'running')
+        await self.start(run_id, req['step_name'])
+        return fetch_one('SELECT * FROM human_vm_requests WHERE id=?', (request_id,)) or {}
 
     def _determine_resume_step(self, run_id: int) -> str:
         planner_passed = fetch_one(
@@ -187,7 +267,9 @@ class TriadRunner:
             if self.is_running(run_id):
                 raise RuntimeError(f"Run {run_id} is already running")
             self._stop_requests.discard(run_id)
-            self._pause_requests.discard(run_id)
+            current_run = fetch_one("SELECT status FROM runs WHERE id=?", (run_id,)) or {}
+            if current_run.get("status") != "awaiting_human_vm":
+                self._pause_requests.discard(run_id)
             task = asyncio.create_task(self._execute(run_id, start_step))
             self._tasks[run_id] = task
 
@@ -199,7 +281,9 @@ class TriadRunner:
             if self._tasks.get(run_id) is current:
                 self._tasks.pop(run_id, None)
             self._stop_requests.discard(run_id)
-            self._pause_requests.discard(run_id)
+            current_run = fetch_one("SELECT status FROM runs WHERE id=?", (run_id,)) or {}
+            if current_run.get("status") != "awaiting_human_vm":
+                self._pause_requests.discard(run_id)
 
     def _check_stop(self, run_id: int) -> None:
         if run_id in self._stop_requests:
@@ -546,6 +630,16 @@ class TriadRunner:
                     worker_resp = await run_worker(worker_input, context_id=worker_context_id)
                     worker_output = str(worker_resp.get("response", ""))
                     worker_context_id = str(worker_resp.get("context_id", "")) or worker_context_id
+                    worker_human_vm = parse_human_vm_packet(worker_output)
+                    if worker_human_vm:
+                        self._create_human_vm_request(run_id, "worker", current_step_id, worker_context_id, worker_human_vm)
+                        self._finish_step(
+                            current_step_id,
+                            status="paused",
+                            output_payload=worker_output,
+                            agent_context_id=worker_context_id,
+                        )
+                        return
                     self._finish_step(
                         current_step_id,
                         status="passed",
@@ -569,6 +663,16 @@ class TriadRunner:
                     reviewer_resp = await run_reviewer(reviewer_input, context_id=reviewer_context_id)
                     reviewer_output = str(reviewer_resp.get("response", ""))
                     reviewer_context_id = str(reviewer_resp.get("context_id", "")) or reviewer_context_id
+                    reviewer_human_vm = parse_human_vm_packet(reviewer_output)
+                    if reviewer_human_vm:
+                        self._create_human_vm_request(run_id, "reviewer", current_step_id, reviewer_context_id, reviewer_human_vm)
+                        self._finish_step(
+                            current_step_id,
+                            status="paused",
+                            output_payload=reviewer_output,
+                            agent_context_id=reviewer_context_id,
+                        )
+                        return
                     verdict = parse_verdict(reviewer_output)
                     last_done = extract_last_done_thing(reviewer_output, verdict)
 
