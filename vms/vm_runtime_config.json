@@ -1,0 +1,10 @@
+{
+  "name": "win11_proof_vm",
+  "memory_mb": 4096,
+  "cpus": 2,
+  "acceleration": "kvm",
+  "novnc_url": "http://localhost:6080",
+  "vnc_port": 5900,
+  "disk_image": "/a0/usr/projects/dashboard_triad_project/vms/WinDev2407Eval.vhdx",
+  "autounattend": "/a0/usr/projects/dashboard_triad_project/vms/autounattend.xml"
+}

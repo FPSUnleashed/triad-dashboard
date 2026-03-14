@@ -15,8 +15,17 @@ tmp/
 .a0proj/
 backend/triad.db
 
-# VM files
-vms/
+# VM runtime files (but track scripts and docs)
+vms/runs/
+vms/baselines/
+vms/media/
+vms/evidence/
+vms/*.log
+vms/*.fd
+vms/*.qcow2
+vms/*.vhdx
+vms/*.iso
+vms/ocr_output.txt
 
 # Legacy rules
 legacy_rules/
